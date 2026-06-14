@@ -27,7 +27,12 @@ UPLOAD_ROOT = upload_root()
 OUTPUT_ROOT = output_root()
 ZIP_ROOT = zip_root()
 
-app = FastAPI(title="CoursePack Local", version="0.6.0")
+app = FastAPI(title="CoursePack Local", version="0.8.0")
+
+
+@app.get("/api/health")
+def api_health():
+    return {"ok": True, "app": "CoursePack Local", "version": "0.8.0"}
 
 
 def safe_name(name: str, fallback: str = "course-export") -> str:

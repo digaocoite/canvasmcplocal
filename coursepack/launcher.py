@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 import threading
+import urllib.request
 import webbrowser
 
 import uvicorn
@@ -10,15 +11,33 @@ import uvicorn
 from .runtime import data_root, is_frozen, output_root, upload_root, zip_root
 
 
-def open_browser() -> None:
-    webbrowser.open("http://127.0.0.1:3333")
+def open_browser(port: int = 3333) -> None:
+    webbrowser.open(f"http://127.0.0.1:{port}")
+
+
+def server_is_running(port: int = 3333) -> bool:
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=1.5) as response:
+            return response.status == 200
+    except Exception:
+        return False
 
 
 def start_web(*, no_browser: bool = False, port: int = 3333) -> int:
     # Create writable folders early, especially in packaged/no-admin mode.
     data_root(); upload_root(); output_root(); zip_root()
+
+    # If the app is already running, do not crash with a port-in-use error.
+    # Just open the browser and exit cleanly. This makes repeated desktop-shortcut clicks safe.
+    if server_is_running(port):
+        print("CoursePack Local is already running.")
+        print(f"Opening http://127.0.0.1:{port}")
+        if not no_browser:
+            open_browser(port)
+        return 0
+
     if not no_browser:
-        threading.Timer(1.0, open_browser).start()
+        threading.Timer(1.0, lambda: open_browser(port)).start()
     print("CoursePack Local is starting...")
     print("Open this address if the browser does not open automatically:")
     print(f"http://127.0.0.1:{port}")

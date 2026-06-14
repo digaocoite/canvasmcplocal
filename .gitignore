@@ -11,9 +11,6 @@ converted-course*/
 workspaces/uploads/*
 workspaces/outputs/*
 workspaces/zips/*
-!workspaces/uploads/.gitkeep
-!workspaces/outputs/.gitkeep
-!workspaces/zips/.gitkeep
 uploads/
 workspace/
 *.imscc

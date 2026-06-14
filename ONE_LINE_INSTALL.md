@@ -61,9 +61,9 @@ irm https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1
 
 - Downloads the latest GitHub Release ZIP.
 - Installs CoursePack into `%LOCALAPPDATA%\CoursePackLocal\app`.
-- Creates a desktop shortcut.
-- Attempts to connect CoursePack to Claude Desktop.
-- Starts CoursePack Local.
+- Creates Desktop and Start Menu shortcuts.
+- Starts CoursePack Local and opens the browser when possible.
+- Does **not** automatically connect Claude Desktop during installation. Users connect Claude later from inside CoursePack after converting a course.
 - Does not require admin rights.
 
 ## Advanced override commands
@@ -78,4 +78,32 @@ Use a direct ZIP URL:
 
 ```powershell
 $env:COURSEPACK_DOWNLOAD_URL="https://example.com/coursepack-local-portable-win64.zip"; irm https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1 | iex
+```
+
+
+## After first install
+
+Users should not run the one-line command every time. After installation, they open CoursePack with:
+
+```text
+Desktop shortcut: CoursePack Local
+Start Menu shortcut: CoursePack Local
+```
+
+If the browser does not open automatically after launching CoursePack, open:
+
+```text
+http://127.0.0.1:3333
+```
+
+## Claude Desktop connection
+
+The installer intentionally does not auto-connect Claude Desktop. Recommended flow:
+
+```text
+1. Install CoursePack.
+2. Open CoursePack.
+3. Convert a Canvas export.
+4. Click Claude Desktop > Connect CoursePack to Claude Desktop.
+5. Fully quit and reopen Claude Desktop.
 ```

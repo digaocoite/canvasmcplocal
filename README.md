@@ -1,8 +1,8 @@
-# CoursePack Local MVP v5
+# CoursePack Local MVP v8
 
 CoursePack Local converts Canvas `.imscc` course exports into a clean, local Markdown coursepack. It now includes a local web interface, course viewer, search, safe skip logging, and a read-only MCP server connection for Claude Desktop.
 
-The project is still an MVP, but v5 is closer to a deployable instructor workflow:
+The project is still an MVP, but v8 is closer to a deployable instructor workflow:
 
 1. Double-click `Start CoursePack Local.bat`.
 2. Browser opens at `http://127.0.0.1:3333`.
@@ -11,8 +11,14 @@ The project is still an MVP, but v5 is closer to a deployable instructor workflo
 5. Search the converted course.
 6. Connect the local read-only MCP server to Claude Desktop.
 
-## What changed in v5
+## What changed in v8
 
+- One-line installer no longer tries to auto-connect Claude Desktop during installation.
+- Installer starts CoursePack first and opens the local browser page when possible.
+- Installer creates both Desktop and Start Menu shortcuts for later use.
+- Repeated app launches are safe: if CoursePack is already running, it opens the browser instead of crashing on port 3333.
+- Added `/api/health` so the installer can confirm the local page is running.
+- Added clearer first-use and later-use instructions.
 - Added immediate browser feedback when clicking **Connect CoursePack to Claude Desktop**.
 - The button now disables while connecting so users do not click it multiple times.
 - The page shows **Starting**, **Connected**, **Already connected**, or **Error** messages.
@@ -58,6 +64,43 @@ http://127.0.0.1:3333
 ```
 
 4. Upload a Canvas `.imscc` export and click **Convert Course**.
+
+
+## Using CoursePack after the first install
+
+Instructors do not run the one-line installer every time. The one-line command is only for first install or reinstall/update.
+
+After CoursePack is installed, use one of these:
+
+```text
+Desktop shortcut: CoursePack Local
+Start Menu shortcut: CoursePack Local
+Manual address after starting: http://127.0.0.1:3333
+```
+
+Converted courses and app data are stored in the user's local profile:
+
+```text
+%LOCALAPPDATA%\CoursePackLocal
+```
+
+If CoursePack is already running and the instructor clicks the shortcut again, the app should simply open the browser page instead of failing because the port is already in use.
+
+## Claude connection timing
+
+CoursePack does not need a converted course before the MCP connector can be registered with Claude Desktop, but Claude will not have useful course content until at least one Canvas export is converted.
+
+Recommended flow:
+
+```text
+1. Install CoursePack.
+2. Open the local CoursePack page.
+3. Convert a Canvas export.
+4. Click Claude Desktop > Connect CoursePack to Claude Desktop.
+5. Fully quit and reopen Claude Desktop.
+```
+
+The installer intentionally does not auto-connect Claude anymore. This prevents a Claude/Windows security problem from blocking the app startup.
 
 ## Check the install
 
@@ -142,31 +185,30 @@ Skipped by default:
 
 This is closer to deployment, but not fully packaged for nontechnical instructors yet.
 
-Current v5 still requires:
+Source/dev mode still requires:
 
 - Python installed on the computer
 - first-run package installation into `.venv`
 - Windows batch files for startup
 
-The next deployment milestone is a portable build that bundles Python so instructors do not need to install Python or use a terminal.
+Portable/release mode bundles Python with PyInstaller. Some managed university computers may still block unknown unsigned executables. In that case, use the source/dev mode or ask IT to allow/sign the executable.
 
 ## Recommended next steps
 
-1. Test v5 on Windows with Claude Desktop installed.
+1. Test v8 on Windows with and without Claude Desktop installed.
 2. Test with several Canvas exports from different course types.
-3. Package Python into the app so it can run without a system Python install.
-4. Add a signed Windows installer or portable `.exe`.
-5. Add optional AI chat inside the local browser UI.
-6. Add a Claude Desktop `.mcpb` extension package later for the cleanest Claude install experience.
+3. If managed computers block the unsigned portable executable, add code signing or an IT-deployed MSI.
+4. Add optional AI chat inside the local browser UI.
+5. Add a Claude Desktop `.mcpb` extension package later for the cleanest Claude install experience.
 
 ## One-line Windows installer
 
-v7 adds `install.ps1`, which allows this style of installation after the project is on GitHub and a portable ZIP is attached to the latest GitHub Release:
+v8 includes `install.ps1`, which allows this style of installation after the project is on GitHub and a portable ZIP is attached to the latest GitHub Release:
 
 ```powershell
 irm https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1 | iex
 ```
 
-Repo: `digaocoite/canvasmcplocal`. Before first use, publish a GitHub Release with the portable Windows ZIP (see `ONE_LINE_INSTALL.md`).
+Repo: `digaocoite/canvasmcplocal`. See `ONE_LINE_INSTALL.md` for the release process.
 
 See `ONE_LINE_INSTALL.md` for the full release process.

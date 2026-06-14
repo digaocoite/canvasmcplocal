@@ -17,6 +17,12 @@ created by Build Windows Portable App.bat. The asset name should contain one of:
   CoursePack-Local
 
 It installs into the current user's profile, so admin rights should not be needed.
+
+v8 installer behavior:
+- Does NOT auto-connect Claude during installation.
+- Starts CoursePack Local after install and opens http://127.0.0.1:3333 when possible.
+- Creates a Desktop shortcut and a Start Menu shortcut for later use.
+- Tells the user to connect Claude from inside CoursePack after converting a course.
 #>
 
 $ErrorActionPreference = "Stop"
@@ -29,6 +35,8 @@ $InstallRoot = Join-Path $env:LOCALAPPDATA "CoursePackLocal"
 $InstallDir = Join-Path $InstallRoot "app"
 $TempDir = Join-Path $env:TEMP ("coursepack-install-" + [guid]::NewGuid().ToString("N"))
 $ZipPath = Join-Path $TempDir "coursepack.zip"
+$LocalUrl = "http://127.0.0.1:3333"
+$HealthUrl = "$LocalUrl/api/health"
 
 function Write-Step($Message) {
     Write-Host ""
@@ -87,6 +95,10 @@ function Find-CoursePackAppFolder($Root) {
 
 function New-Shortcut($TargetPath, $ShortcutPath, $WorkingDirectory) {
     try {
+        $shortcutDir = Split-Path -Parent $ShortcutPath
+        if ($shortcutDir -and !(Test-Path $shortcutDir)) {
+            New-Item -ItemType Directory -Force -Path $shortcutDir | Out-Null
+        }
         $shell = New-Object -ComObject WScript.Shell
         $shortcut = $shell.CreateShortcut($ShortcutPath)
         $shortcut.TargetPath = $TargetPath
@@ -96,6 +108,51 @@ function New-Shortcut($TargetPath, $ShortcutPath, $WorkingDirectory) {
     } catch {
         Write-Warn "Could not create shortcut: $($_.Exception.Message)"
     }
+}
+
+function Test-CoursePackRunning() {
+    try {
+        $result = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 2
+        return ($result.StatusCode -eq 200)
+    } catch {
+        return $false
+    }
+}
+
+function Start-CoursePack($StartBat, $ExePath, $InstallDir) {
+    Write-Step "Starting CoursePack Local"
+    try {
+        if (Test-Path $StartBat) {
+            # Launch through cmd.exe so .bat startup works consistently from PowerShell/one-line installs.
+            Start-Process -FilePath $env:ComSpec -ArgumentList @('/c', 'start', '"CoursePack Local"', ('"' + $StartBat + '"')) -WorkingDirectory $InstallDir | Out-Null
+            Write-Ok "Started CoursePack using Start CoursePack Local.bat"
+        } elseif (Test-Path $ExePath) {
+            Start-Process -FilePath $ExePath -WorkingDirectory $InstallDir | Out-Null
+            Write-Ok "Started CoursePack executable"
+        } else {
+            Write-Warn "Start file was not found. Use the installed folder manually: $InstallDir"
+            return
+        }
+    } catch {
+        Write-Warn "CoursePack did not start automatically: $($_.Exception.Message)"
+        Write-Warn "Try the Desktop shortcut named 'CoursePack Local'."
+        return
+    }
+
+    # Give the local web server a few seconds to start. If it is already running,
+    # this will quickly succeed. If Windows/IT blocks the executable, we warn but do not fail install.
+    for ($i = 1; $i -le 15; $i++) {
+        Start-Sleep -Seconds 1
+        if (Test-CoursePackRunning) {
+            Write-Ok "CoursePack Local is running at $LocalUrl"
+            try { Start-Process $LocalUrl | Out-Null } catch {}
+            return
+        }
+    }
+
+    Write-Warn "CoursePack was installed, but the local page did not respond automatically."
+    Write-Warn "Open the Desktop shortcut 'CoursePack Local', or open $LocalUrl after starting it."
+    Write-Warn "If Windows says 'Access is denied' or blocks the app, your university security policy may be blocking the portable executable."
 }
 
 try {
@@ -136,40 +193,28 @@ try {
     $StartBat = Join-Path $InstallDir "Start CoursePack Local.bat"
     $ExePath = Join-Path $InstallDir "CoursePack Local.exe"
 
-    Write-Step "Creating desktop shortcut"
+    Write-Step "Creating shortcuts"
     $Desktop = [Environment]::GetFolderPath("Desktop")
-    if (Test-Path $StartBat) {
-        New-Shortcut -TargetPath $StartBat -ShortcutPath (Join-Path $Desktop "CoursePack Local.lnk") -WorkingDirectory $InstallDir
-    } elseif (Test-Path $ExePath) {
-        New-Shortcut -TargetPath $ExePath -ShortcutPath (Join-Path $Desktop "CoursePack Local.lnk") -WorkingDirectory $InstallDir
+    $Programs = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
+    $ShortcutTarget = if (Test-Path $StartBat) { $StartBat } elseif (Test-Path $ExePath) { $ExePath } else { $null }
+    if ($ShortcutTarget) {
+        New-Shortcut -TargetPath $ShortcutTarget -ShortcutPath (Join-Path $Desktop "CoursePack Local.lnk") -WorkingDirectory $InstallDir
+        New-Shortcut -TargetPath $ShortcutTarget -ShortcutPath (Join-Path $Programs "CoursePack Local.lnk") -WorkingDirectory $InstallDir
     } else {
         Write-Warn "Start file was not found, but files were installed."
     }
 
-    Write-Step "Checking Claude Desktop connection"
-    if (Test-Path $ExePath) {
-        try {
-            & $ExePath --connect-claude
-            Write-Ok "Claude connector step completed. Fully quit and reopen Claude Desktop."
-        } catch {
-            Write-Warn "Claude connector did not complete: $($_.Exception.Message)"
-            Write-Warn "CoursePack will still work in the browser. You can connect Claude later from the app."
-        }
-    } else {
-        Write-Warn "Packaged executable was not found, so Claude auto-connect was skipped."
-    }
+    Write-Step "Claude Desktop connection"
+    Write-Host "Claude is not connected automatically during install." -ForegroundColor Yellow
+    Write-Host "After you convert a course, open CoursePack and click 'Claude Desktop' > 'Connect CoursePack to Claude Desktop'."
 
-    Write-Step "Starting CoursePack Local"
-    if (Test-Path $StartBat) {
-        Start-Process -FilePath $StartBat -WorkingDirectory $InstallDir
-    } elseif (Test-Path $ExePath) {
-        Start-Process -FilePath $ExePath -WorkingDirectory $InstallDir
-    }
+    Start-CoursePack -StartBat $StartBat -ExePath $ExePath -InstallDir $InstallDir
 
     Write-Host ""
     Write-Ok "CoursePack Local installed."
-    Write-Host "Open http://127.0.0.1:3333 if the browser does not open automatically."
-    Write-Host "If using Claude Desktop, fully quit and reopen Claude Desktop after installation."
+    Write-Host "Use it now: $LocalUrl"
+    Write-Host "Use it later: double-click the 'CoursePack Local' Desktop shortcut or Start Menu shortcut."
+    Write-Host "Your converted courses are saved under: $InstallRoot"
 }
 catch {
     Write-Host ""

@@ -15,9 +15,9 @@ The installer should:
 1. Download the latest portable Windows release ZIP from GitHub Releases.
 2. Install it into the user folder, not `C:\Program Files`.
 3. Avoid admin privileges.
-4. Create a desktop shortcut if possible.
-5. Start CoursePack Local.
-6. Attempt to connect CoursePack to Claude Desktop if Claude is installed.
+4. Create Desktop and Start Menu shortcuts if possible.
+5. Start CoursePack Local and open the browser when possible.
+6. Do **not** auto-connect CoursePack to Claude Desktop during install. Claude connection should happen later from inside the CoursePack web UI after the user converts a course.
 7. Show clear status messages so the user knows what is happening.
 
 ## Starting project file
@@ -189,16 +189,16 @@ Expected behavior:
 2. Installer shows status messages.
 3. Installer downloads the latest release ZIP.
 4. Installer extracts CoursePack to `%LOCALAPPDATA%\CoursePackLocal\app`.
-5. Installer creates a desktop shortcut if possible.
-6. Installer starts CoursePack Local.
+5. Installer creates Desktop and Start Menu shortcuts if possible.
+6. Installer starts CoursePack Local and opens the local browser page when possible.
 7. Browser opens at:
 
 ```text
 http://127.0.0.1:3333
 ```
 
-8. If Claude Desktop is installed, installer attempts to configure Claude MCP access.
-9. If Claude is not installed, installer should not fail. It should say CoursePack still works in the browser.
+8. Installer should **not** attempt to configure Claude MCP access during install.
+9. The installer should tell the user: convert a course first, then click Claude Desktop > Connect CoursePack to Claude Desktop inside the CoursePack app.
 
 ## Step 7 — Test CoursePack itself
 
@@ -298,5 +298,5 @@ The setup is complete only when all of these are true:
 - [ ] CoursePack opens at `http://127.0.0.1:3333`.
 - [ ] A Canvas `.imscc` file converts successfully.
 - [ ] Skipped files are logged instead of causing failure.
-- [ ] Claude Desktop connection is optional and does not break install if Claude is missing.
+- [ ] Claude Desktop connection is optional, user-triggered from the web UI, and not run automatically by the installer.
 - [ ] This temporary instruction file has been deleted.
