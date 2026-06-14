@@ -27,6 +27,11 @@ v8 installer behavior:
 
 $ErrorActionPreference = "Stop"
 
+$LogDir = Join-Path $env:LOCALAPPDATA "CoursePackLocal"
+$LogFile = Join-Path $LogDir "install-last.log"
+New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+try { Start-Transcript -Path $LogFile -Force | Out-Null } catch {}
+
 # TODO: Change this before publishing to GitHub.
 $DefaultRepo = "digaocoite/canvasmcplocal"
 
@@ -51,16 +56,14 @@ function Write-Warn($Message) {
     Write-Host "[WARN] $Message" -ForegroundColor Yellow
 }
 
-function Wait-ForEnter($Prompt = "Press Enter to close this window") {
+function Wait-ForEnter($Prompt = "Press any key to close this window") {
     if ($env:COURSEPACK_INSTALL_NO_PAUSE -eq "1") { return }
-    try {
-        if ([Environment]::UserInteractive) {
-            Write-Host ""
-            Read-Host $Prompt | Out-Null
-        }
-    } catch {
-        # Non-interactive hosts (automation) skip the pause.
-    }
+    Write-Host ""
+    Write-Host $Prompt -ForegroundColor Gray
+    Write-Host "Install log saved to: $LogFile" -ForegroundColor DarkGray
+    Write-Host ""
+    # Read-Host often fails when the script was piped in via: irm ... | iex
+    cmd /c pause | Out-Null
 }
 
 function Get-LatestReleaseAssetUrl($RepoName) {
@@ -168,6 +171,7 @@ function Start-CoursePack($StartBat, $ExePath, $InstallDir) {
 }
 
 try {
+    $script:InstallFailed = $false
     Write-Host "CoursePack Local installer" -ForegroundColor White
     Write-Host "This installs only for the current user. No admin rights should be needed."
 
@@ -227,7 +231,6 @@ try {
     Write-Host "Use it now: $LocalUrl"
     Write-Host "Use it later: double-click the 'CoursePack Local' Desktop shortcut or Start Menu shortcut."
     Write-Host "Your converted courses are saved under: $InstallRoot"
-    Wait-ForEnter
 }
 catch {
     Write-Host ""
@@ -235,11 +238,16 @@ catch {
     Write-Host $_.Exception.Message -ForegroundColor Red
     Write-Host ""
     Write-Host "Tip: make sure the GitHub Release has a portable Windows ZIP asset attached." -ForegroundColor Yellow
-    Wait-ForEnter "Press Enter to close this window (install failed)"
-    exit 1
+    $script:InstallFailed = $true
 }
 finally {
     if (Test-Path $TempDir) {
         Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
     }
+    try { Stop-Transcript | Out-Null } catch {}
+    if ($script:InstallFailed) {
+        Wait-ForEnter "Install failed. Press any key to close this window"
+        exit 1
+    }
+    Wait-ForEnter "Install finished. Press any key to close this window"
 }

@@ -51,16 +51,24 @@ coursepack-local-portable-win64.zip
 
 ## 4. One-line install command
 
-Users can run:
+Users can run (recommended — window stays open):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -NoExit -Command "iex (irm 'https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1')"
+```
+
+Or double-click `Install-CoursePack.cmd` from the repo.
+
+Classic one-liner (may close too fast on some PCs because `irm | iex` breaks interactive pause):
 
 ```powershell
 irm https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1 | iex
 ```
 
-If the PowerShell window closes too fast to read messages, either open PowerShell first and run the line there, or use:
+If a window closes immediately, read the log:
 
-```powershell
-powershell -NoExit -Command "irm https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1 | iex"
+```text
+%LOCALAPPDATA%\CoursePackLocal\install-last.log
 ```
 
 ## What the installer does
