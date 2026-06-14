@@ -13,12 +13,13 @@ import webbrowser
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
 
 from .claude_config import connect_to_claude, status as claude_status
 from .converter import CoursePackConverter, bytes_human
 from .runtime import app_root, data_root, is_frozen, output_root, upload_root, zip_root
+from .reports import build_reports, save_reports
 from .search import course_summary, load_conversion_events, load_course_map, load_skipped_assets, search_course
 
 APP_ROOT = app_root()
@@ -27,12 +28,12 @@ UPLOAD_ROOT = upload_root()
 OUTPUT_ROOT = output_root()
 ZIP_ROOT = zip_root()
 
-app = FastAPI(title="CoursePack Local", version="0.8.0")
+app = FastAPI(title="CoursePack Local", version="0.9.0")
 
 
 @app.get("/api/health")
 def api_health():
-    return {"ok": True, "app": "CoursePack Local", "version": "0.8.0"}
+    return {"ok": True, "app": "CoursePack Local", "version": "0.9.0"}
 
 
 def safe_name(name: str, fallback: str = "course-export") -> str:
@@ -242,6 +243,11 @@ async def convert_upload(
             copy_assets=copy_assets == "yes",
         )
         converter.convert()
+        try:
+            save_reports(output_dir)
+        except Exception:
+            # Reports are helpful, but conversion should not fail if a report rule has a bug.
+            pass
 
         zip_base = ZIP_ROOT / output_dir.name
         shutil.make_archive(str(zip_base), "zip", output_dir)
@@ -271,19 +277,32 @@ def courses_page() -> HTMLResponse:
         for folder in sorted([p for p in OUTPUT_ROOT.iterdir() if p.is_dir()], key=lambda p: p.stat().st_mtime, reverse=True):
             if (folder / "course_index.md").exists():
                 summary = course_summary(folder)
-                courses.append((folder.name, summary))
+                modified = folder.stat().st_mtime
+                courses.append((folder.name, summary, modified))
     if not courses:
-        return page("Converted Courses", "<div class='box'><h2>No converted courses yet</h2><p>Upload a Canvas export to create your first CoursePack.</p><a class='button' href='/'>Upload course</a></div>")
+        return page("Recent Courses", "<div class='box'><h2>No converted courses yet</h2><p>Upload a Canvas export to create your first CoursePack.</p><a class='button' href='/'>Upload course</a></div>")
     cards = []
-    for name, summary in courses:
+    for name, summary, modified in courses:
+        import datetime
+        modified_text = datetime.datetime.fromtimestamp(modified).strftime("%Y-%m-%d %I:%M %p")
+        kinds = summary.get("by_kind", {}) or {}
+        kinds_text = ", ".join(f"{v} {k}" for k, v in sorted(kinds.items())) or "No item summary"
         cards.append(f"""
 <div class="card">
   <h3>{html.escape(name)}</h3>
+  <p class="muted">Last updated: {html.escape(modified_text)}</p>
   <p><span class="pill">{summary.get('modules', 0)} modules</span> <span class="pill">{summary.get('converted_items', 0)} converted</span> <span class="pill">{summary.get('skipped_assets', 0)} skipped</span></p>
-  <p><a class="button" href="/course/{html.escape(name)}">Open</a></p>
+  <p class="small">{html.escape(kinds_text)}</p>
+  <p>
+    <a class="button" href="/course/{html.escape(name)}">Open dashboard</a>
+    <a class="button secondary" href="/reports/{html.escape(name)}">Reports</a>
+    <a class="button ghost" href="/download/{html.escape(name)}.zip">Download ZIP</a>
+  </p>
+  <form method="post" action="/course/{html.escape(name)}/delete" onsubmit="return confirm('Delete this converted course from CoursePack Local? This does not affect Canvas or the original export file.');">
+    <button class="danger" type="submit">Delete local copy</button>
+  </form>
 </div>""")
-    return page("Converted Courses", f"<h2>Converted courses</h2><div class='cards'>{''.join(cards)}</div>")
-
+    return page("Recent Courses", f"<h2>Recent converted courses</h2><p class='muted'>These courses are stored locally on this computer.</p><div class='cards'>{''.join(cards)}</div>")
 
 @app.get("/course/{out_name}", response_class=HTMLResponse)
 def course_page(out_name: str) -> HTMLResponse:
@@ -331,6 +350,7 @@ def course_page(out_name: str) -> HTMLResponse:
   {html_table({'Converted items': summary.get('converted_items'), 'Modules': summary.get('modules'), 'Skipped assets': summary.get('skipped_assets'), 'Warnings/errors': summary.get('events')})}
   <p>
     <a class="button" href="/download/{html.escape(out_name)}.zip">Download converted ZIP</a>
+    <a class="button secondary" href="/reports/{html.escape(out_name)}">View built-in reports</a>
     <a class="button secondary" href="/view/{html.escape(out_name)}/course_index.md">View course index</a>
     <a class="button secondary" href="/view/{html.escape(out_name)}/conversion_report.md">View conversion report</a>
   </p>
@@ -346,6 +366,7 @@ def course_page(out_name: str) -> HTMLResponse:
 
 <div class="grid">
   <section class="box"><h2 style="margin-top:0">Converted by type</h2><table>{kind_rows}</table></section>
+  <section class="box"><h2 style="margin-top:0">Built-in reports</h2><p>Check dates, links, policy mentions, workload, and skipped files without using AI.</p><a class="button secondary" href="/reports/{html.escape(out_name)}">Open reports</a></section>
   <section class="box"><h2 style="margin-top:0">Claude Desktop</h2><p>Use Claude Desktop to query this converted course through the read-only MCP server.</p><a class="button secondary" href="/claude">Connect Claude</a></section>
 </div>
 
@@ -387,6 +408,128 @@ def search_page(out_name: str, q: str = Query(..., min_length=1)) -> HTMLRespons
 {''.join(rows) or '<p>No matches found.</p>'}
     """
     return page("Search results", body)
+
+@app.get("/reports/{out_name}", response_class=HTMLResponse)
+def reports_page(out_name: str) -> HTMLResponse:
+    output_dir = safe_output_dir(out_name)
+    # Regenerate reports on demand so older converted courses also get v9 reports.
+    try:
+        md_path = save_reports(output_dir)
+    except Exception:
+        md_path = None
+    data = build_reports(output_dir)
+
+    dates = data.get("dates", [])
+    links = data.get("links", [])
+    policy = data.get("policy_mentions", {}) or {}
+    workload = data.get("workload_by_module", [])
+    skipped = data.get("skipped_summary", {}) or {}
+
+    link_counts = {}
+    for item in links:
+        status = item.get("status", "unknown")
+        link_counts[status] = link_counts.get(status, 0) + 1
+    link_rows = "".join(f"<tr><th>{html.escape(str(k))}</th><td>{v}</td></tr>" for k, v in sorted(link_counts.items())) or "<tr><td colspan='2'>No links found.</td></tr>"
+
+    workload_rows = "".join(
+        f"<tr><td>{html.escape(str(m.get('position')))}. {html.escape(str(m.get('title')))}</td><td>{m.get('converted_items')}</td><td>{m.get('words')}</td><td>{m.get('estimated_reading_minutes')}</td></tr>"
+        for m in workload
+    ) or "<tr><td colspan='4'>No module workload data found.</td></tr>"
+
+    date_rows = "".join(
+        f"<tr><td><code>{html.escape(str(d.get('match')))}</code></td><td>{html.escape(str(d.get('path')))}</td><td>{html.escape(str(d.get('context')))}</td></tr>"
+        for d in dates[:60]
+    ) or "<tr><td colspan='3'>No date-like text found.</td></tr>"
+
+    missing_links = [l for l in links if l.get("status") in {"missing_local", "outside_coursepack"}]
+    missing_link_rows = "".join(
+        f"<tr><td>{html.escape(str(l.get('status')))}</td><td><code>{html.escape(str(l.get('target')))}</code></td><td>{html.escape(str(l.get('path')))}</td></tr>"
+        for l in missing_links[:80]
+    ) or "<tr><td colspan='3'>No missing local links found.</td></tr>"
+
+    policy_sections = []
+    for group, hits in policy.items():
+        hit_items = "".join(
+            f"<li><a href='/view/{html.escape(out_name)}/{html.escape(h.get('path',''))}'>{html.escape(h.get('title') or h.get('path',''))}</a> <span class='muted'>matched: {html.escape(str(h.get('matched_term','')))}</span><div class='snippet'>{html.escape((h.get('snippets') or [''])[0])}</div></li>"
+            for h in hits[:8]
+        ) or "<li>No matches found.</li>"
+        policy_sections.append(f"<details class='box'><summary><strong>{html.escape(group)}</strong> — {len(hits)} file(s)</summary><ul class='list-clean'>{hit_items}</ul></details>")
+
+    skipped_ext_rows = "".join(
+        f"<tr><th>{html.escape(str(ext))}</th><td>{count}</td></tr>"
+        for ext, count in sorted((skipped.get("by_extension") or {}).items())
+    ) or "<tr><td colspan='2'>No skipped files.</td></tr>"
+
+    report_file_button = ""
+    if md_path and md_path.exists():
+        report_file_button = f"<a class='button secondary' href='/view/{html.escape(out_name)}/reports/reports.md'>View report file</a>"
+
+    body = f"""
+<p><a class="button ghost" href="/course/{html.escape(out_name)}">Back to course dashboard</a> {report_file_button} <a class="button ghost" href="/raw/{html.escape(out_name)}/reports/reports.json">Open JSON</a></p>
+<div class="box success">
+  <h2 style="margin-top:0">Built-in reports for {html.escape(out_name)}</h2>
+  <p>These reports are rule-based and run locally. They do not require Claude, ChatGPT, or an API key.</p>
+  {html_table({'Date findings': len(dates), 'Links found': len(links), 'Missing local links': len(missing_links), 'Skipped files': skipped.get('total', 0), 'Workload modules': len(workload)})}
+</div>
+
+<div class="grid">
+  <section class="box"><h2 style="margin-top:0">Link summary</h2><table>{link_rows}</table></section>
+  <section class="box"><h2 style="margin-top:0">Skipped files by extension</h2><table>{skipped_ext_rows}</table><p class='muted'>Total skipped size: {bytes_human(int(skipped.get('total_size_bytes') or 0))}</p></section>
+</div>
+
+<h2>Workload by module</h2>
+<div class="box"><table><tr><th>Module</th><th>Converted items</th><th>Words</th><th>Estimated reading minutes</th></tr>{workload_rows}</table></div>
+
+<h2>Possible old/current dates</h2>
+<div class="box"><p class="muted">This finds date-like text. Review manually; not every date is a problem.</p><table><tr><th>Date</th><th>File</th><th>Context</th></tr>{date_rows}</table></div>
+
+<h2>Missing local links</h2>
+<div class="box"><p class="muted">External web links are listed as not checked. Missing local links may indicate content that was skipped or a Canvas path that needs cleanup.</p><table><tr><th>Status</th><th>Target</th><th>File</th></tr>{missing_link_rows}</table></div>
+
+<h2>Policy mentions</h2>
+{''.join(policy_sections)}
+    """
+    return page("Built-in reports", body)
+
+
+@app.post("/course/{out_name}/delete")
+def delete_course(out_name: str):
+    output_dir = safe_output_dir(out_name)
+    zip_path = ZIP_ROOT / f"{output_dir.name}.zip"
+    shutil.rmtree(output_dir, ignore_errors=True)
+    if zip_path.exists():
+        try:
+            zip_path.unlink()
+        except Exception:
+            pass
+    return RedirectResponse(url="/courses", status_code=303)
+
+
+@app.get("/help", response_class=HTMLResponse)
+def help_page() -> HTMLResponse:
+    body = """
+<div class="box">
+  <h2 style="margin-top:0">How to use CoursePack Local again later</h2>
+  <p>Open <strong>CoursePack Local</strong> from your Desktop shortcut or from the Windows Start Menu. The local page is usually:</p>
+  <pre>http://127.0.0.1:3333</pre>
+  <p>That address only works while the CoursePack app is running.</p>
+</div>
+<div class="box">
+  <h2 style="margin-top:0">Recommended workflow</h2>
+  <ol>
+    <li>Export a course from Canvas as <code>.imscc</code>.</li>
+    <li>Open CoursePack Local.</li>
+    <li>Upload and convert the course export.</li>
+    <li>Review the dashboard and built-in reports.</li>
+    <li>Optionally connect Claude Desktop after conversion.</li>
+  </ol>
+</div>
+<div class="box warning">
+  <h2 style="margin-top:0">Privacy note</h2>
+  <p>CoursePack stores converted courses locally on this computer. Built-in reports and search do not send content to an AI provider.</p>
+</div>
+    """
+    return page("Help", body)
 
 
 @app.get("/download/{zip_name}")

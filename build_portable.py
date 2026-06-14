@@ -30,6 +30,7 @@ def main() -> int:
         f"requirements.txt{sep}.",
         f"requirements-mcp.txt{sep}.",
         f"requirements-docs.txt{sep}.",
+        f"uninstall.ps1{sep}.",
     ]
 
     cmd = [
@@ -90,6 +91,12 @@ def main() -> int:
             '@echo off\r\n'
             'cd /d "%~dp0"\r\n'
             f'"%~dp0{exe_name}" --claude-status\r\n'
+            'pause\r\n',
+            encoding="utf-8",
+        )
+        (app_dir / "Uninstall CoursePack Local.bat").write_text(
+            '@echo off\r\n'
+            'powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0uninstall.ps1"\r\n'
             'pause\r\n',
             encoding="utf-8",
         )

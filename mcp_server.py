@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 from typing import Any
 
+from coursepack.reports import build_reports, save_reports
 from coursepack.search import course_summary, load_conversion_events, load_course_map, load_skipped_assets, read_text, search_course
 
 try:
@@ -116,6 +117,29 @@ def build_server(workspace: Path) -> FastMCP:
         """Return structured course metadata including modules, converted items, and output paths."""
         course = resolve_course(workspace, course_name)
         return load_course_map(course)
+
+    @mcp.tool()
+    def get_builtin_reports(course_name: str | None = None) -> dict[str, Any]:
+        """Return local rule-based reports: dates, links, policy mentions, module workload, and skipped files. No AI required."""
+        course = resolve_course(workspace, course_name)
+        try:
+            save_reports(course)
+        except Exception:
+            pass
+        return build_reports(course)
+
+    @mcp.tool()
+    def get_builtin_reports_markdown(course_name: str | None = None) -> str:
+        """Read the Markdown version of CoursePack's built-in reports."""
+        course = resolve_course(workspace, course_name)
+        try:
+            save_reports(course)
+        except Exception:
+            pass
+        report = course / "reports" / "reports.md"
+        if not report.exists():
+            raise FileNotFoundError("Report file was not generated.")
+        return read_text(report, limit_chars=120000)
 
     return mcp
 

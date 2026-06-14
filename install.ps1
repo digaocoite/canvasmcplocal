@@ -18,11 +18,17 @@ created by Build Windows Portable App.bat. The asset name should contain one of:
 
 It installs into the current user's profile, so admin rights should not be needed.
 
-v8 installer behavior:
+v9 installer behavior:
 - Does NOT auto-connect Claude during installation.
 - Starts CoursePack Local after install and opens http://127.0.0.1:3333 when possible.
-- Creates a Desktop shortcut and a Start Menu shortcut for later use.
+- Creates Desktop and Start Menu shortcuts; optional Uninstall shortcut in Start Menu.
+- Non-fatal health wait (managed/university PCs may need 1-2 minutes on first launch).
+- Window stays open at end (cmd pause + install log).
 - Tells the user to connect Claude from inside CoursePack after converting a course.
+
+Recommended install command (window stays open):
+
+  powershell -NoProfile -ExecutionPolicy Bypass -NoExit -Command "iex (irm 'https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1')"
 #>
 
 $ErrorActionPreference = "Stop"
@@ -217,6 +223,7 @@ try {
 
     $StartBat = Join-Path $InstallDir "Start CoursePack Local.bat"
     $ExePath = Join-Path $InstallDir "CoursePack Local.exe"
+    $UninstallBat = Join-Path $InstallDir "Uninstall CoursePack Local.bat"
 
     Write-Step "Creating shortcuts"
     $Desktop = [Environment]::GetFolderPath("Desktop")
@@ -225,6 +232,9 @@ try {
     if ($ShortcutTarget) {
         New-Shortcut -TargetPath $ShortcutTarget -ShortcutPath (Join-Path $Desktop "CoursePack Local.lnk") -WorkingDirectory $InstallDir
         New-Shortcut -TargetPath $ShortcutTarget -ShortcutPath (Join-Path $Programs "CoursePack Local.lnk") -WorkingDirectory $InstallDir
+        if (Test-Path $UninstallBat) {
+            New-Shortcut -TargetPath $UninstallBat -ShortcutPath (Join-Path $Programs "Uninstall CoursePack Local.lnk") -WorkingDirectory $InstallDir
+        }
     } else {
         Write-Warn "Start file was not found, but files were installed."
     }
@@ -239,6 +249,7 @@ try {
     Write-Ok "CoursePack Local installed."
     Write-Host "Use it now: open the 'CoursePack Local' shortcut, then $LocalUrl"
     Write-Host "Use it later: Desktop or Start Menu shortcut 'CoursePack Local'."
+    Write-Host "Uninstall: Start Menu > Uninstall CoursePack Local"
     Write-Host "Installed files: $InstallDir"
     Write-Host "Your converted courses are saved under: $InstallRoot"
 }

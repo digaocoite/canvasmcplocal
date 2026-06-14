@@ -1,8 +1,8 @@
-# CoursePack Local MVP v8
+# CoursePack Local MVP v9
 
 CoursePack Local converts Canvas `.imscc` course exports into a clean, local Markdown coursepack. It now includes a local web interface, course viewer, search, safe skip logging, and a read-only MCP server connection for Claude Desktop.
 
-The project is still an MVP, but v8 is closer to a deployable instructor workflow:
+The project is still an MVP, but v9 is closer to a deployable instructor workflow:
 
 1. Double-click `Start CoursePack Local.bat`.
 2. Browser opens at `http://127.0.0.1:3333`.
@@ -11,23 +11,17 @@ The project is still an MVP, but v8 is closer to a deployable instructor workflo
 5. Search the converted course.
 6. Connect the local read-only MCP server to Claude Desktop.
 
-## What changed in v8
+## What changed in v9
 
-- One-line installer no longer tries to auto-connect Claude Desktop during installation.
-- Installer starts CoursePack first and opens the local browser page when possible.
-- Installer creates both Desktop and Start Menu shortcuts for later use.
-- Repeated app launches are safe: if CoursePack is already running, it opens the browser instead of crashing on port 3333.
-- Added `/api/health` so the installer can confirm the local page is running.
-- Added clearer first-use and later-use instructions.
-- Added immediate browser feedback when clicking **Connect CoursePack to Claude Desktop**.
-- The button now disables while connecting so users do not click it multiple times.
-- The page shows **Starting**, **Connected**, **Already connected**, or **Error** messages.
-- Added JSON status endpoint: `/api/claude/status`.
-- Added JSON connect endpoint: `/api/claude/connect`.
-- Claude config updates are now idempotent: repeated clicks do not create unnecessary backups if the config is already correct.
-- Claude config is backed up before it is changed.
-- Added `Check CoursePack Install.bat` for a basic readiness check.
-- Improved `Connect CoursePack to Claude.bat` with visible progress messages.
+- Added a stronger **Recent Courses** page with last-updated information, quick actions, and local delete buttons.
+- Added built-in local reports that do not require AI: date findings, link findings, missing local links, policy mentions, skipped-file summary, and workload by module.
+- Reports are saved as `reports/reports.md` and `reports/reports.json` in each converted course.
+- Added a Help page explaining how instructors open CoursePack again after the first install.
+- Added a user-level uninstall helper: `Uninstall CoursePack Local.bat` and `uninstall.ps1`.
+- Added MCP tools for Claude to read the built-in reports.
+- Kept v8 behavior: the one-line installer does not auto-connect Claude Desktop during installation.
+- Kept v8 behavior: installer starts CoursePack first, opens the local browser page when possible, and creates Desktop/Start Menu shortcuts.
+- Kept v8 behavior: Claude connection has immediate browser feedback and is idempotent.
 
 ## What it does now
 
@@ -43,7 +37,8 @@ The project is still an MVP, but v8 is closer to a deployable instructor workflo
 - Can optionally attempt PDF/Office conversion with Microsoft MarkItDown if the optional dependency is installed.
 - Writes a human-readable `conversion_report.md`.
 - Writes structured metadata in `metadata/course_map.json`, `metadata/skipped_assets.json`, `metadata/conversion_events.json`, and `metadata/resource_map.json`.
-- Runs a local web app for upload, review, search, and download.
+- Runs a local web app for upload, review, search, reports, and download.
+- Provides built-in rule-based reports that work without AI.
 - Provides a read-only MCP server for Claude Desktop.
 
 ## Windows quick start
@@ -111,6 +106,12 @@ Check CoursePack Install.bat
 ```
 
 This checks Python, required packages, local app files, and Claude configuration readability.
+
+To remove the local app later, use the Start Menu shortcut or run:
+
+```text
+Uninstall CoursePack Local.bat
+```
 
 ## Connect to Claude Desktop
 
@@ -195,7 +196,7 @@ Portable/release mode bundles Python with PyInstaller. Some managed university c
 
 ## Recommended next steps
 
-1. Test v8 on Windows with and without Claude Desktop installed.
+1. Test v9 on Windows with and without Claude Desktop installed.
 2. Test with several Canvas exports from different course types.
 3. If managed computers block the unsigned portable executable, add code signing or an IT-deployed MSI.
 4. Add optional AI chat inside the local browser UI.
@@ -203,12 +204,10 @@ Portable/release mode bundles Python with PyInstaller. Some managed university c
 
 ## One-line Windows installer
 
-v8 includes `install.ps1`, which allows this style of installation after the project is on GitHub and a portable ZIP is attached to the latest GitHub Release:
+Recommended (window stays open on managed PCs):
 
 ```powershell
-irm https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1 | iex
+powershell -NoProfile -ExecutionPolicy Bypass -NoExit -Command "iex (irm 'https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1')"
 ```
 
-Repo: `digaocoite/canvasmcplocal`. See `ONE_LINE_INSTALL.md` for the release process.
-
-See `ONE_LINE_INSTALL.md` for the full release process.
+Repo: `digaocoite/canvasmcplocal`. See `ONE_LINE_INSTALL.md` for details.

@@ -200,6 +200,14 @@ class CoursePackConverter:
             self._build_modules(zf)
 
         self._write_indexes()
+        # Reports are best-effort. If a report rule fails, keep the conversion successful
+        # and record the issue in the conversion events log rather than breaking the coursepack.
+        try:
+            from .reports import save_reports
+            save_reports(self.output_dir)
+        except Exception:
+            self.result.warning("reports", "Could not generate built-in reports", traceback.format_exc())
+            self._write_indexes()
         return self.result
 
     def _build_resource_map(self, zf: zipfile.ZipFile) -> None:

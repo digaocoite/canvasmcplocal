@@ -7,10 +7,14 @@ After you push this project to GitHub and build a Windows portable release ZIP, 
 Change this line:
 
 ```powershell
-$DefaultRepo = "digaocoite/canvasmcplocal"
+$DefaultRepo = "YOUR_GITHUB_USERNAME/coursepack"
 ```
 
-(Already set in `install.ps1` for this repo.)
+to your real GitHub repository, for example:
+
+```powershell
+$DefaultRepo = "diogenes/coursepack"
+```
 
 ## 2. Build the portable app on Windows
 
@@ -51,24 +55,16 @@ coursepack-local-portable-win64.zip
 
 ## 4. One-line install command
 
-Users can run (recommended — window stays open):
+Users can run:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -NoExit -Command "iex (irm 'https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1')"
+irm https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/coursepack/main/install.ps1 | iex
 ```
 
-Or double-click `Install-CoursePack.cmd` from the repo.
-
-Classic one-liner (may close too fast on some PCs because `irm | iex` breaks interactive pause):
+Example:
 
 ```powershell
-irm https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1 | iex
-```
-
-If a window closes immediately, read the log:
-
-```text
-%LOCALAPPDATA%\CoursePackLocal\install-last.log
+irm https://raw.githubusercontent.com/diogenes/coursepack/main/install.ps1 | iex
 ```
 
 ## What the installer does
@@ -85,13 +81,13 @@ If a window closes immediately, read the log:
 Use a different repo without editing the script:
 
 ```powershell
-$env:COURSEPACK_REPO="digaocoite/canvasmcplocal"; irm https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1 | iex
+$env:COURSEPACK_REPO="yourname/coursepack"; irm https://raw.githubusercontent.com/yourname/coursepack/main/install.ps1 | iex
 ```
 
 Use a direct ZIP URL:
 
 ```powershell
-$env:COURSEPACK_DOWNLOAD_URL="https://example.com/coursepack-local-portable-win64.zip"; irm https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1 | iex
+$env:COURSEPACK_DOWNLOAD_URL="https://example.com/coursepack-local-portable-win64.zip"; irm https://raw.githubusercontent.com/yourname/coursepack/main/install.ps1 | iex
 ```
 
 
