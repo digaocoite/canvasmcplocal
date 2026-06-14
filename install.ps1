@@ -196,9 +196,18 @@ function New-Shortcut($TargetPath, $ShortcutPath, $WorkingDirectory) {
 }
 
 function Test-CoursePackRunning() {
+    # TCP probe avoids Invoke-WebRequest TerminatingError noise in transcripts when the app is still starting.
     try {
-        $result = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 3 -ErrorAction SilentlyContinue
-        return ($null -ne $result -and $result.StatusCode -eq 200)
+        $client = New-Object System.Net.Sockets.TcpClient
+        $connect = $client.BeginConnect("127.0.0.1", 3333, $null, $null)
+        $ready = $connect.AsyncWaitHandle.WaitOne(1500, $false)
+        if (-not $ready) {
+            $client.Close()
+            return $false
+        }
+        $client.EndConnect($connect)
+        $client.Close()
+        return $true
     } catch {
         return $false
     }
