@@ -249,6 +249,58 @@ function Start-CoursePack($StartBat, $ExePath, $InstallDir) {
     $ErrorActionPreference = $priorErrorAction
 }
 
+function Stop-CoursePackProcesses($InstallRoot) {
+    Write-Host "Stopping any running CoursePack processes..."
+    foreach ($name in @("CoursePack Local", "CoursePackLocal")) {
+        Get-Process -Name $name -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    }
+    try {
+        Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+            $_.ExecutablePath -and (
+                $_.ExecutablePath -like "*CoursePackLocal*" -or
+                $_.ExecutablePath -like "*CoursePack Local*"
+            )
+        } | ForEach-Object {
+            Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+        }
+    } catch {}
+    Start-Sleep -Seconds 2
+}
+
+function Install-AppToUserFolder($AppFolder, $InstallDir, $InstallRoot) {
+    Write-Step "Installing to user folder"
+    if (Test-Path $InstallDir) {
+        Stop-CoursePackProcesses -InstallRoot $InstallRoot
+        $BackupDir = Join-Path $InstallRoot ("app-backup-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
+        $backedUp = $false
+        for ($attempt = 1; $attempt -le 5; $attempt++) {
+            try {
+                Move-Item -Path $InstallDir -Destination $BackupDir -Force -ErrorAction Stop
+                Write-Ok "Previous app backed up to: $BackupDir"
+                $backedUp = $true
+                break
+            } catch {
+                Write-Warn "Could not move existing install (attempt $attempt/5). Another process may still be using files."
+                Stop-CoursePackProcesses -InstallRoot $InstallRoot
+                Start-Sleep -Seconds 3
+            }
+        }
+        if (-not $backedUp) {
+            throw @"
+Could not replace the existing install because CoursePack is still running.
+
+1. Close every CoursePack / command window for CoursePack.
+2. Task Manager -> end any 'CoursePack Local' task.
+3. Run this installer again.
+
+Existing install: $InstallDir
+"@
+        }
+    }
+    Copy-Item -Path $AppFolder -Destination $InstallDir -Recurse -Force
+    Write-Ok "Installed to: $InstallDir"
+}
+
 try {
     $script:InstallFailed = $false
     Write-Host "CoursePack Local installer" -ForegroundColor White
@@ -291,14 +343,7 @@ try {
     $AppFolder = Find-CoursePackAppFolder -Root $ExtractDir
     Write-Ok "Found app folder: $AppFolder"
 
-    Write-Step "Installing to user folder"
-    if (Test-Path $InstallDir) {
-        $BackupDir = Join-Path $InstallRoot ("app-backup-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
-        Move-Item -Path $InstallDir -Destination $BackupDir -Force
-        Write-Ok "Previous app backed up to: $BackupDir"
-    }
-    Copy-Item -Path $AppFolder -Destination $InstallDir -Recurse -Force
-    Write-Ok "Installed to: $InstallDir"
+    Install-AppToUserFolder -AppFolder $AppFolder -InstallDir $InstallDir -InstallRoot $InstallRoot
 
     $StartBat = Join-Path $InstallDir "Start CoursePack Local.bat"
     $ExePath = Join-Path $InstallDir "CoursePack Local.exe"
@@ -337,7 +382,7 @@ catch {
     Write-Host "CoursePack install failed:" -ForegroundColor Red
     Write-Host $_.Exception.Message -ForegroundColor Red
     Write-Host ""
-    Write-Host "Tip: make sure the GitHub Release has a portable Windows ZIP asset attached." -ForegroundColor Yellow
+    Write-Host "Tip: close CoursePack before upgrading, or end 'CoursePack Local' in Task Manager if files are in use." -ForegroundColor Yellow
     $script:InstallFailed = $true
 }
 finally {
