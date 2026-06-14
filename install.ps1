@@ -51,6 +51,18 @@ function Write-Warn($Message) {
     Write-Host "[WARN] $Message" -ForegroundColor Yellow
 }
 
+function Wait-ForEnter($Prompt = "Press Enter to close this window") {
+    if ($env:COURSEPACK_INSTALL_NO_PAUSE -eq "1") { return }
+    try {
+        if ([Environment]::UserInteractive) {
+            Write-Host ""
+            Read-Host $Prompt | Out-Null
+        }
+    } catch {
+        # Non-interactive hosts (automation) skip the pause.
+    }
+}
+
 function Get-LatestReleaseAssetUrl($RepoName) {
     if ($RepoName -match "YOUR_GITHUB_USERNAME") {
         throw "Edit install.ps1 first: set `$DefaultRepo to your real GitHub repo, like 'digaocoite/canvasmcplocal'."
@@ -215,6 +227,7 @@ try {
     Write-Host "Use it now: $LocalUrl"
     Write-Host "Use it later: double-click the 'CoursePack Local' Desktop shortcut or Start Menu shortcut."
     Write-Host "Your converted courses are saved under: $InstallRoot"
+    Wait-ForEnter
 }
 catch {
     Write-Host ""
@@ -222,6 +235,7 @@ catch {
     Write-Host $_.Exception.Message -ForegroundColor Red
     Write-Host ""
     Write-Host "Tip: make sure the GitHub Release has a portable Windows ZIP asset attached." -ForegroundColor Yellow
+    Wait-ForEnter "Press Enter to close this window (install failed)"
     exit 1
 }
 finally {

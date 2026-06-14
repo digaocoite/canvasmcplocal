@@ -57,6 +57,12 @@ Users can run:
 irm https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1 | iex
 ```
 
+If the PowerShell window closes too fast to read messages, either open PowerShell first and run the line there, or use:
+
+```powershell
+powershell -NoExit -Command "irm https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1 | iex"
+```
+
 ## What the installer does
 
 - Downloads the latest GitHub Release ZIP.
