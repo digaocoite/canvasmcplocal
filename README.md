@@ -115,21 +115,20 @@ Uninstall CoursePack Local.bat
 
 ## Connect to Claude Desktop
 
+**Windows note:** Standalone Claude and **Microsoft Store** Claude use **different** `claude_desktop_config.json` files. CoursePack's Connect button updates **all relevant** config files so the Claude you actually launch can see the `coursepack` MCP tools.
+
 The easiest method is from the browser UI:
 
 1. Open CoursePack Local.
 2. Go to **Claude Desktop** in the top navigation.
 3. Click **Connect CoursePack to Claude Desktop**.
-4. The page immediately shows that the process started.
-5. When it finishes, fully quit and reopen Claude Desktop.
+4. **Fully quit** Claude from the **system tray** (Quit — not just close the window).
+5. Reopen Claude and look for `coursepack` MCP tools.
 
-You can also run:
+If tools are still missing on Microsoft Store Claude, check:
+`%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\logs\mcp.log`
 
-```text
-Connect CoursePack to Claude.bat
-```
-
-Claude Desktop reads local MCP servers from its local config file. CoursePack adds a `coursepack` MCP server entry pointing to this project's local Python environment and `mcp_server.py`.
+Claude Desktop reads local MCP servers from its config file(s). CoursePack adds a `coursepack` MCP server entry pointing to the packaged `.exe` (`--mcp`) or local Python + `mcp_server.py` in source mode.
 
 ## What Claude can access
 

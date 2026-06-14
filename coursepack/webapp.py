@@ -603,12 +603,12 @@ def claude_page() -> HTMLResponse:
     body = f"""
 <section class="box {status_class}">
   <h2 style="margin-top:0">Claude Desktop connection</h2>
-  <p>This adds a read-only <code>coursepack</code> MCP server entry to Claude Desktop's local config. It backs up the existing config before changing it.</p>
+  <p>This adds a read-only <code>coursepack</code> MCP server entry to <strong>every relevant</strong> Claude Desktop config file. On Windows, standalone and <strong>Microsoft Store</strong> Claude use different config paths — CoursePack updates both when found.</p>
   {html_table(st)}
   <button id="connectClaudeBtn" type="button">Connect CoursePack to Claude Desktop</button>
   <a class="button ghost" href="/api/claude/status" target="_blank">Open raw status</a>
   <div id="claudeConnectStatus" class="box" style="display:none"></div>
-  <p class="muted small">After connecting, fully quit and reopen Claude Desktop. Then ask Claude to use CoursePack to search or analyze your converted course.</p>
+  <p class="muted small">After connecting, <strong>fully quit</strong> Claude from the system tray (Quit — closing the window is not enough), then reopen Claude. Ask Claude to use CoursePack to search or analyze your converted course.</p>
 </section>
 <section class="box warning">
   <h2 style="margin-top:0">What Claude can access</h2>
