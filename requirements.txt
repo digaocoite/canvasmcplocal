@@ -1,0 +1,9 @@
+beautifulsoup4>=4.12
+markdownify>=0.11
+fastapi>=0.115
+uvicorn>=0.30
+python-multipart>=0.0.9
+
+# Optional: install manually only if you want PDF/Office conversion.
+# The converter works without it and will skip those files safely.
+# markitdown>=0.1
