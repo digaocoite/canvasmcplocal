@@ -72,7 +72,7 @@ function Wait-ForEnter($Prompt = "Press any key to close this window") {
     cmd /c pause | Out-Null
 }
 
-function Get-LatestReleaseAssetUrl($RepoName) {
+function Get-LatestReleaseAsset($RepoName) {
     if ($RepoName -match "YOUR_GITHUB_USERNAME") {
         throw "Edit install.ps1 first: set `$DefaultRepo to your real GitHub repo, like 'digaocoite/canvasmcplocal'."
     }
@@ -94,8 +94,72 @@ function Get-LatestReleaseAssetUrl($RepoName) {
         throw "Could not find a CoursePack portable ZIP asset. Release assets found: $names"
     }
 
-    Write-Ok "Found release asset: $($asset.name)"
-    return $asset.browser_download_url
+    Write-Ok "Found release asset: $($asset.name) ($($asset.size) bytes)"
+    return @{
+        Url = $asset.browser_download_url
+        Name = $asset.name
+        Size = [int64]$asset.size
+    }
+}
+
+function Test-ZipFile($Path) {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    try {
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($Path)
+        $zip.Dispose()
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Download-ReleaseAsset($Url, $OutPath, $ExpectedSize) {
+    $maxAttempts = 3
+    $minBytes = if ($ExpectedSize -gt 0) { [int64][math]::Floor($ExpectedSize * 0.98) } else { 1MB }
+
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        Write-Host "Download attempt $attempt of $maxAttempts..."
+        if (Test-Path $OutPath) {
+            Remove-Item $OutPath -Force -ErrorAction SilentlyContinue
+        }
+
+        $usedCurl = $false
+        $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+        if ($curl) {
+            & curl.exe -fL --retry 2 --retry-delay 2 -o $OutPath $Url
+            if ($LASTEXITCODE -eq 0) { $usedCurl = $true }
+            else { Write-Warn "curl.exe failed (exit $LASTEXITCODE). Trying Invoke-WebRequest..." }
+        }
+        if (-not $usedCurl) {
+            Invoke-WebRequest -Uri $Url -OutFile $OutPath -UseBasicParsing -TimeoutSec 900
+        }
+
+        if (-not (Test-Path $OutPath)) {
+            Write-Warn "Download produced no file."
+            continue
+        }
+
+        $got = (Get-Item $OutPath).Length
+        if ($ExpectedSize -gt 0) {
+            Write-Host "Downloaded $got bytes (expected $ExpectedSize)."
+        } else {
+            Write-Host "Downloaded $got bytes."
+        }
+
+        if ($got -lt $minBytes) {
+            Write-Warn "Download looks truncated."
+            continue
+        }
+        if (-not (Test-ZipFile -Path $OutPath)) {
+            Write-Warn "Downloaded file is not a valid ZIP (common on campus networks)."
+            continue
+        }
+
+        Write-Ok "Download verified"
+        return
+    }
+
+    throw "Download failed after $maxAttempts attempts. Your network may be truncating GitHub downloads. Try home Wi-Fi/LTE, or download the ZIP manually from the GitHub release page and run: `$env:COURSEPACK_LOCAL_ZIP='C:\path\to\coursepack-local-portable-win64.zip'; then re-run this installer."
 }
 
 function Find-CoursePackAppFolder($Root) {
@@ -195,16 +259,31 @@ try {
     New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
     New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
 
-    $DownloadUrl = if ($env:COURSEPACK_DOWNLOAD_URL) {
-        $env:COURSEPACK_DOWNLOAD_URL
-    } else {
-        Get-LatestReleaseAssetUrl -RepoName $Repo
-    }
+    $asset = $null
+    $DownloadUrl = $null
+    $ExpectedSize = 0
 
-    Write-Step "Downloading CoursePack Local"
-    Write-Host $DownloadUrl
-    Invoke-WebRequest -Uri $DownloadUrl -OutFile $ZipPath -UseBasicParsing
-    Write-Ok "Downloaded installer ZIP"
+    if ($env:COURSEPACK_LOCAL_ZIP -and (Test-Path $env:COURSEPACK_LOCAL_ZIP)) {
+        Write-Step "Using local ZIP file"
+        Write-Host $env:COURSEPACK_LOCAL_ZIP
+        Copy-Item -Path $env:COURSEPACK_LOCAL_ZIP -Destination $ZipPath -Force
+        if (-not (Test-ZipFile -Path $ZipPath)) {
+            throw "Local ZIP is not valid: $env:COURSEPACK_LOCAL_ZIP"
+        }
+        Write-Ok "Local ZIP verified"
+    } elseif ($env:COURSEPACK_DOWNLOAD_URL) {
+        $DownloadUrl = $env:COURSEPACK_DOWNLOAD_URL
+        Write-Step "Downloading CoursePack Local (custom URL)"
+        Write-Host $DownloadUrl
+        Download-ReleaseAsset -Url $DownloadUrl -OutPath $ZipPath -ExpectedSize 0
+    } else {
+        $asset = Get-LatestReleaseAsset -RepoName $Repo
+        $DownloadUrl = $asset.Url
+        $ExpectedSize = $asset.Size
+        Write-Step "Downloading CoursePack Local"
+        Write-Host $DownloadUrl
+        Download-ReleaseAsset -Url $DownloadUrl -OutPath $ZipPath -ExpectedSize $ExpectedSize
+    }
 
     Write-Step "Extracting files"
     $ExtractDir = Join-Path $TempDir "extracted"

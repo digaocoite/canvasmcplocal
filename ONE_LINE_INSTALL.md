@@ -1,119 +1,55 @@
 # One-line installer setup
 
-After you push this project to GitHub and build a Windows portable release ZIP, users can install CoursePack with one PowerShell line.
+Repo: `digaocoite/canvasmcplocal` — `install.ps1` is already configured.
 
-## 1. Edit `install.ps1`
-
-Change this line:
+## Recommended install command (window stays open)
 
 ```powershell
-$DefaultRepo = "YOUR_GITHUB_USERNAME/coursepack"
+powershell -NoProfile -ExecutionPolicy Bypass -NoExit -Command "iex (irm 'https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1')"
 ```
 
-to your real GitHub repository, for example:
-
-```powershell
-$DefaultRepo = "diogenes/coursepack"
-```
-
-## 2. Build the portable app on Windows
-
-Run:
-
-```text
-Build Windows Portable App.bat
-```
-
-This creates a portable ZIP similar to:
-
-```text
-coursepack-local-portable-win32.zip
-```
-
-## 3. Create a GitHub Release
-
-On GitHub:
-
-1. Go to Releases.
-2. Create a new release, such as `v0.1.0`.
-3. Upload the portable ZIP created by the build script.
-4. Publish the release.
-
-The ZIP asset name should contain one of these phrases so the installer can find it:
-
-```text
-coursepack-local-portable
-CoursePackLocal
-CoursePack-Local
-```
-
-Recommended name:
-
-```text
-coursepack-local-portable-win64.zip
-```
-
-## 4. One-line install command
-
-Users can run:
-
-```powershell
-irm https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/coursepack/main/install.ps1 | iex
-```
-
-Example:
-
-```powershell
-irm https://raw.githubusercontent.com/diogenes/coursepack/main/install.ps1 | iex
-```
+Or double-click `Install-CoursePack.cmd` from the repo.
 
 ## What the installer does
 
 - Downloads the latest GitHub Release ZIP.
 - Installs CoursePack into `%LOCALAPPDATA%\CoursePackLocal\app`.
-- Creates Desktop and Start Menu shortcuts.
-- Starts CoursePack Local and opens the browser when possible.
-- Does **not** automatically connect Claude Desktop during installation. Users connect Claude later from inside CoursePack after converting a course.
+- Creates Desktop and Start Menu shortcuts (plus Uninstall in Start Menu when available).
+- Starts CoursePack and waits up to 90s for `http://127.0.0.1:3333` (non-fatal on slow/managed PCs).
+- Writes a log to `%LOCALAPPDATA%\CoursePackLocal\install-last.log`.
+- Pauses with **Press any key** before closing (works even when `irm | iex` would close too fast).
+- Does **not** auto-connect Claude Desktop during install.
 - Does not require admin rights.
 
-## Advanced override commands
+## If download fails on campus Wi‑Fi (truncated ZIP)
 
-Use a different repo without editing the script:
+Download the ZIP manually in a browser:
 
-```powershell
-$env:COURSEPACK_REPO="yourname/coursepack"; irm https://raw.githubusercontent.com/yourname/coursepack/main/install.ps1 | iex
-```
+https://github.com/digaocoite/canvasmcplocal/releases/latest
 
-Use a direct ZIP URL:
+Then install from the saved file:
 
 ```powershell
-$env:COURSEPACK_DOWNLOAD_URL="https://example.com/coursepack-local-portable-win64.zip"; irm https://raw.githubusercontent.com/yourname/coursepack/main/install.ps1 | iex
+$env:COURSEPACK_LOCAL_ZIP="C:\Users\ddstk8\Downloads\coursepack-local-portable-win64.zip"
+powershell -NoProfile -ExecutionPolicy Bypass -NoExit -Command "iex (irm 'https://raw.githubusercontent.com/digaocoite/canvasmcplocal/main/install.ps1')"
 ```
 
+(Change the path to where your browser saved the file.)
+
+## Build new Windows portable (maintainers)
+
+GitHub Actions → **Build Windows portable** → Run workflow, then create a release with `coursepack-local-portable-win64.zip`.
+
+Or on Windows: `Build Windows Portable App.bat`
 
 ## After first install
 
-Users should not run the one-line command every time. After installation, they open CoursePack with:
-
-```text
-Desktop shortcut: CoursePack Local
-Start Menu shortcut: CoursePack Local
-```
-
-If the browser does not open automatically after launching CoursePack, open:
+Open CoursePack with the **CoursePack Local** Desktop or Start Menu shortcut — not the one-line installer every time.
 
 ```text
 http://127.0.0.1:3333
 ```
 
-## Claude Desktop connection
+## Uninstall
 
-The installer intentionally does not auto-connect Claude Desktop. Recommended flow:
-
-```text
-1. Install CoursePack.
-2. Open CoursePack.
-3. Convert a Canvas export.
-4. Click Claude Desktop > Connect CoursePack to Claude Desktop.
-5. Fully quit and reopen Claude Desktop.
-```
+Start Menu → **Uninstall CoursePack Local** (v9+), or run `Uninstall CoursePack Local.bat` from the install folder.
