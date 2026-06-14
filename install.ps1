@@ -127,15 +127,19 @@ function New-Shortcut($TargetPath, $ShortcutPath, $WorkingDirectory) {
 
 function Test-CoursePackRunning() {
     try {
-        $result = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 2
-        return ($result.StatusCode -eq 200)
+        $result = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 3 -ErrorAction SilentlyContinue
+        return ($null -ne $result -and $result.StatusCode -eq 200)
     } catch {
         return $false
     }
 }
 
 function Start-CoursePack($StartBat, $ExePath, $InstallDir) {
+    $priorErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+
     Write-Step "Starting CoursePack Local"
+    Write-Host "First launch can take 1-2 minutes on university/managed PCs (security scan, unpack)." -ForegroundColor Yellow
     try {
         if (Test-Path $StartBat) {
             # Launch through cmd.exe so .bat startup works consistently from PowerShell/one-line installs.
@@ -154,20 +158,25 @@ function Start-CoursePack($StartBat, $ExePath, $InstallDir) {
         return
     }
 
-    # Give the local web server a few seconds to start. If it is already running,
-    # this will quickly succeed. If Windows/IT blocks the executable, we warn but do not fail install.
-    for ($i = 1; $i -le 15; $i++) {
+    # Optional: wait for the local web server. Install already succeeded if we reach here.
+    $maxWaitSec = 90
+    for ($i = 1; $i -le $maxWaitSec; $i++) {
         Start-Sleep -Seconds 1
         if (Test-CoursePackRunning) {
             Write-Ok "CoursePack Local is running at $LocalUrl"
             try { Start-Process $LocalUrl | Out-Null } catch {}
+            $ErrorActionPreference = $priorErrorAction
             return
+        }
+        if ($i % 15 -eq 0) {
+            Write-Host "Still waiting for CoursePack to respond... ($i/$maxWaitSec seconds)" -ForegroundColor DarkGray
         }
     }
 
-    Write-Warn "CoursePack was installed, but the local page did not respond automatically."
-    Write-Warn "Open the Desktop shortcut 'CoursePack Local', or open $LocalUrl after starting it."
-    Write-Warn "If Windows says 'Access is denied' or blocks the app, your university security policy may be blocking the portable executable."
+    Write-Warn "CoursePack was installed, but http://127.0.0.1:3333 did not respond within $maxWaitSec seconds."
+    Write-Warn "Open the Desktop shortcut 'CoursePack Local' and wait for its window to finish starting."
+    Write-Warn "If Windows blocks the app, contact IT or run from a personal (non-UM) profile."
+    $ErrorActionPreference = $priorErrorAction
 }
 
 try {
@@ -228,8 +237,9 @@ try {
 
     Write-Host ""
     Write-Ok "CoursePack Local installed."
-    Write-Host "Use it now: $LocalUrl"
-    Write-Host "Use it later: double-click the 'CoursePack Local' Desktop shortcut or Start Menu shortcut."
+    Write-Host "Use it now: open the 'CoursePack Local' shortcut, then $LocalUrl"
+    Write-Host "Use it later: Desktop or Start Menu shortcut 'CoursePack Local'."
+    Write-Host "Installed files: $InstallDir"
     Write-Host "Your converted courses are saved under: $InstallRoot"
 }
 catch {
